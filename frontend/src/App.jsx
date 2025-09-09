@@ -1,0 +1,228 @@
+import React, { useState } from "react";
+
+function App() {
+  const [file, setFile] = useState(null);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [chat, setChat] = useState([]);
+  const [msg, setMsg] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+
+
+  async function predict() {
+    if (!file) {
+      alert("Please upload an image first");
+      return;
+    }
+
+    setLoading(true);
+    setResult(null);
+
+    const fd = new FormData();
+    fd.append("file", file);
+
+    try {
+      const res = await fetch("http://localhost:5000/predict", {
+        method: "POST",
+        body: fd,
+      });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      setResult(data);
+    } catch (err) {
+      console.error(err);
+      alert(`Error predicting disease: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  async function sendMsg() {
+    if (!msg.trim()) return;
+
+    setChatLoading(true);
+    const currentMsg = msg;
+    setMsg("");
+
+    try {
+      const res = await fetch("http://localhost:5000/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: currentMsg }),
+      });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      setChat([...chat, { q: currentMsg, a: data.reply }]);
+    } catch (err) {
+      console.error(err);
+      alert(`Error contacting chatbot: ${err.message}`);
+      setMsg(currentMsg); // Restore the message if there was an error
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+
+  return (
+    <div className="min-h-screen p-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">🌱 Plant Disease Detector</h1>
+          <p className="text-white/80 text-lg">Upload a leaf image to detect diseases and get expert advice</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Disease Detection Section */}
+          <div className="chat-container p-6">
+            <h2 className="text-2xl font-semibold mb-4 text-gray-800">🔍 Disease Detection</h2>
+            
+            <div className="upload-area mb-4" onClick={() => document.getElementById('fileInput').click()}>
+              {file ? (
+                <div>
+                  <p className="text-green-600 font-medium">✓ {file.name}</p>
+                  <p className="text-sm text-gray-500 mt-1">Click to change file</p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-gray-600">📁 Click to upload leaf image</p>
+                  <p className="text-sm text-gray-500 mt-1">Supports JPG, PNG, JPEG</p>
+                </div>
+              )}
+            </div>
+            
+            <input
+              id="fileInput"
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFile(e.target.files[0])}
+              className="hidden"
+            />
+            
+            <button
+              onClick={predict}
+              disabled={!file || loading}
+              className="w-full px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors duration-200 flex items-center justify-center"
+            >
+              {loading ? (
+                <>
+                  <div className="loading mr-2"></div>
+                  Analyzing...
+                </>
+              ) : (
+                '🔬 Analyze Disease'
+              )}
+            </button>
+
+            {result && (
+              <div className="prediction-result">
+                <h3 className="font-semibold text-lg mb-2">Analysis Result:</h3>
+                <p className="text-lg">
+                  <strong>Disease:</strong> {result.prediction}
+                </p>
+                <p className="text-sm opacity-90">
+                  <strong>Confidence:</strong> {(result.confidence * 100).toFixed(1)}%
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Chatbot Section */}
+          <div className="chat-container p-6">
+            <h2 className="text-2xl font-semibold mb-4 text-gray-800">💬 Crop Expert Chat</h2>
+            
+            <div className="border rounded-lg p-4 h-80 overflow-y-auto bg-gray-50 mb-4">
+              {chat.length === 0 ? (
+                <div className="text-center text-gray-500 mt-8">
+                  <p>👋 Hi! I'm your crop expert assistant.</p>
+                  <p className="text-sm mt-2">Ask me about plant care, diseases, fertilizers, or any farming questions!</p>
+                </div>
+              ) : (
+                chat.map((c, i) => (
+                  <div key={i} className="mb-4">
+                    <div className="bg-blue-100 p-3 rounded-lg mb-2">
+                      <p className="text-sm font-medium text-blue-800">You:</p>
+                      <p className="text-blue-700">{c.q}</p>
+                    </div>
+                    <div className="bg-green-100 p-3 rounded-lg">
+                      <p className="text-sm font-medium text-green-800">Expert:</p>
+                      <p className="text-green-700">{c.a}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+              {chatLoading && (
+                <div className="text-center text-gray-500">
+                  <div className="loading mx-auto mb-2"></div>
+                  <p>Expert is typing...</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                value={msg}
+                onChange={(e) => setMsg(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendMsg()}
+                placeholder="Ask about crops, diseases, fertilizers..."
+                className="flex-1 border border-gray-300 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={chatLoading}
+              />
+              <button
+                onClick={sendMsg}
+                disabled={!msg.trim() || chatLoading}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors duration-200"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Features Section */}
+        <div className="mt-12 text-center">
+          <h3 className="text-2xl font-semibold text-white mb-6">Why Choose Our Plant Disease Detector?</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="chat-container p-6">
+              <div className="text-3xl mb-3">🎯</div>
+              <h4 className="font-semibold text-lg mb-2">Accurate Detection</h4>
+              <p className="text-gray-600">Advanced AI model trained on thousands of plant images for precise disease identification</p>
+            </div>
+            <div className="chat-container p-6">
+              <div className="text-3xl mb-3">⚡</div>
+              <h4 className="font-semibold text-lg mb-2">Fast Analysis</h4>
+              <p className="text-gray-600">Get instant results in seconds, not hours. Quick diagnosis for timely treatment</p>
+            </div>
+            <div className="chat-container p-6">
+              <div className="text-3xl mb-3">🤖</div>
+              <h4 className="font-semibold text-lg mb-2">Expert Chatbot</h4>
+              <p className="text-gray-600">Get personalized advice from our AI crop expert for treatment and prevention</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+export default App;
