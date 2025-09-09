@@ -1,4 +1,4 @@
-# 🌱 Plant Disease Detector
+# 🌱 AgriGuard - Plant Disease Detector
 
 A modern web application that uses AI to detect plant diseases from leaf images and provides expert advice through an integrated chatbot.
 
